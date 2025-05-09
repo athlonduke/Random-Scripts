@@ -4,7 +4,7 @@ $sitecode = $args[0]
 $siteKey = "YOUR KEY HERE"
 
 # build argument string
-$arguments = "--action install --key $key"
+$arguments = "--action install --key $siteKey"
 
 if ($sitecode) {
     $arguments = $arguments + ":" + $sitecode
