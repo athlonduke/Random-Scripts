@@ -8,13 +8,12 @@
 # 2) define port
 # 3) update final output variable with combined statuses
 
-# use binary string to declare results
-# 0 - ping. use weighed, 8 out of 10 for return 1
-# 1 - httpcode. anything 2XX is ok and will return 1
-# 2 - content validation. look for a text result and verify existance
-# example 111 - all good
-# example 000 - all failed
-# example 110 - ping, http code pass, but page does not contain expected output
+# Create hashtable for output
+# ############
+# Ping:Healthy
+# HTTPCode:Healthy
+# Pattern:FAILED - (error)
+# ############
 
 param(
     [string]$target, 
@@ -25,11 +24,15 @@ param(
 # add more if needed
 $httpPorts = @(80,443)
 
-Write-Host "Target: " $target
-Write-Host "Port: " $port
-Write-Host "Test Pattern: " $testPattern
+write-host "Target: " $target
+write-host "Port: " $port
+write-host "Test Pattern: " $testPattern
 
-$finalResult = 0 # pessimistic approach: start fail and build up
+$resultsTable = @{
+    ping = "Untested"
+    httpcode = "Untested"
+    pattern = "Untested"
+}
 
 function pingTest ([string]$pingTarget,[int]$pingPort) {
     if ($pingTarget -match "^(.*?)\/") {
@@ -42,23 +45,21 @@ function pingTest ([string]$pingTarget,[int]$pingPort) {
     if ($port -ne 0) {
         $pingResult = Test-NetConnection -ComputerName $finalPingTarget -InformationLevel Detailed -Port $pingPort
         if ($pingResult.TcpTestSucceeded -eq $true) {
-            Write-Host "Port Test Succeeded"
-            return(1)
+            write-host "Port Test Succeeded"
+            $resultsTable["ping"] = "Port Test: " + $pingport + " OK"
         } else {
-            Write-Host "Port Test Failed"
-            return(0)
-
+            write-host "Port Test Failed"
+            $resultsTable["ping"] = "Port Test: " + $pingport + " FAILED"
         }
     } else {
         $pingResult = Test-NetConnection -ComputerName $finalPingTarget.Trim() -InformationLevel Detailed
         if ($pingResult.PingSucceeded -eq $true) {
-            Write-Host "Ping Succeeded"
-            return(1)
+            write-host "Ping Succeeded"
+            $resultsTable["ping"] = "Ping Test: OK"
 
         } else {
-            Write-Host "Ping Failed"
-            return(0)
-
+            write-host "Ping Failed"
+            $resultsTable["ping"] = "Ping Test: FAILED"
         }
     }
 }
@@ -70,15 +71,16 @@ function httpCode([string]$httpCodeTarget,[int]$httpCodePort){
         write-host "HTTP Status Code: $statusCode"
         if ($statusCode -match "2\d{2}") {
             write-host "Found 200 series HTTP Code"
-            return (1)
+            $resultsTable["httpcode"] = "HTTPCode: " + $statusCode + " OK"
         } else {
             write-host "Did not find 200 series HTTP Code"
-            return (0)
+            $resultsTable["httpcode"] = "HTTPCode: " + $statusCode + " FAILED"
         }
     } catch [System.Net.WebException] {
         $response = $_.Exception.Response
-        Write-Host "Caught error with status code: $($response.StatusCode.Value__)"
-        return (0)
+        $statusCode = $response.StatusCode
+        write-host "Caught error with status code: $($response.StatusCode.Value__)"
+        $resultsTable["httpcode"] = "HTTPCode: " + $($response.StatusCode.Value__) + " FAILED"
     }
 }
 
@@ -86,32 +88,36 @@ function patternTest([string]$patternTestTarget,[int]$patternTestPort,[string]$p
     try {
         $response = Invoke-WebRequest -Uri $patternTestTarget
         if ($response.Content -match $patternTestPattern) {
-            Write-Host "Pattern found: $($matches[0])"
-            return (1)
+            write-host "Pattern found: $($matches[0])"
+            $resultsTable["pattern"] = "Pattern Test: OK"
         } else {
-            Write-Host "Pattern not found."
-            return (0)
+            write-host "Pattern not found."
+            $resultsTable["pattern"] = "Pattern Test: FAILED"
         }
     } catch [System.Net.WebException] {
         $response = $_.Exception.Response
-        Write-Host "Caught error with status code: $($response.StatusCode.Value__)"
-        return (0)
+        write-host "Caught error with status code: $($response.StatusCode.Value__)"
+        $resultsTable["pattern"] = "Pattern Test: FAILED"
     }
 }
 
 # Kick off the basic ping test
-$finalResult = pingTest $target $port
+pingTest $target $port
 
 # Kick off the HTTP code test
 if ($httpPorts -contains $port) {
     write-host "HTTP code test"
-    $finalResult = httpCode $target $port
+    httpCode $target $port
 }
 
 # Kick off the pattern test if there is a pattern
 if ($testPattern) {
-    Write-Host "Pattern test"
-    $finalResult = patternTest $target $port $testPattern
+    write-host "Pattern test"
+    patternTest $target $port $testPattern
 }
 
-Write-Host "Final Result: "$finalResult
+write-host "--------"
+write-host "Final Result: "
+write-host $resultsTable.ping
+write-host $resultsTable.httpcode
+write-host $resultsTable.pattern
