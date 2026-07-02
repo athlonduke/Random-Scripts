@@ -53,10 +53,10 @@ get-modernStandbyStatus
 # Write-Host "set enabled: " $setEnabled
 
 if ($setEnabled -eq 1) {
-    Write-Host "Enabling Modern Authenication (you monster)"
+    Write-Host "Enabling Modern Standby (you monster)"
     set-modernStandby -setEnabled $setEnabled
 } elseif ($setEnabled -eq 0) {
-    Write-Host "Disabling Modern Authentication"
+    Write-Host "Disabling Modern Standby"
     set-modernStandby -setEnabled $setEnabled
 } else {
     Write-Host "No change request detected, ending script"
