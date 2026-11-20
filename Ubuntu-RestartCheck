@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Checks whether an Ubuntu server needs a reboot.
+# Exit codes: 0 = no reboot required, 1 = reboot required (WARNING)
+
+FLAG_FILE="/var/run/reboot-required"
+PKGS_FILE="/var/run/reboot-required.pkgs"
+HOST="$(hostname)"
+
+if [ -f "$FLAG_FILE" ]; then
+    echo "WARNING: $HOST - reboot required ($FLAG_FILE exists)"
+    if [ -s "$PKGS_FILE" ]; then
+        echo "Packages requiring reboot: $(sort -u "$PKGS_FILE" | tr '\n' ' ')"
+    fi
+    exit 1
+else
+    echo "OK: $HOST - no reboot required ($FLAG_FILE does not exist)"
+    exit 0
+fi
